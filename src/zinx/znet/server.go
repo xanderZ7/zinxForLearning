@@ -1,6 +1,7 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"zinx/src/zinx/ziface"
@@ -16,6 +17,17 @@ type Server struct {
 	IP string
 	// 服务器监听的端口
 	Port int
+}
+
+func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
+	fmt.Println("[Conn Handle] Call back to client")
+
+	if _, err := conn.Write(data[:cnt]); err != nil {
+		fmt.Println("write back buf err", err)
+		return errors.New("Call back to client error")
+	}
+
+	return nil
 }
 
 // 启动服务器
@@ -38,6 +50,8 @@ func (s *Server) Start() {
 		}
 
 		fmt.Println("Start Zinx server suncc,", s.Name, "succ, Listenning...")
+		var cid uint32
+		cid = 0
 
 		// 3. 阻塞的等待客户端连接，处理客户端连接业务（读写）
 		for {
@@ -48,25 +62,32 @@ func (s *Server) Start() {
 				continue
 			}
 
-			// 已经与客户端建立连接，做一个最大512字节长度的回显业务
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					cnt, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("recv buf err", err)
-						continue
-					}
+			// 将处理新连接的业务方法 和 conn 进行绑定，得到我们的连接模块
+			dealConn := NewConnection(conn, cid, CallBackToClient)
+			cid++
 
-					fmt.Printf("recv client buf %s, cnt %d\n", buf, cnt)
+			// 启动当前的连接业务处理
+			go dealConn.Start()
+			// // 已经与客户端建立连接，做一个最大512字节长度的回显业务
+			// go func() {
+			// 	for {
+			// 		buf := make([]byte, 512)
+			// 		cnt, err := conn.Read(buf)
+			// 		if err != nil {
+			// 			fmt.Println("recv buf err", err)
+			// 			continue
+			// 		}
 
-					// 回显业务
-					if _, err := conn.Write(buf[:cnt]); err != nil {
-						fmt.Println("write back buf err", err)
-						continue
-					}
-				}
-			}()
+			// 		fmt.Printf("recv client buf %s, cnt %d\n", buf, cnt)
+
+			// 		// 回显业务
+			// 		if _, err := conn.Write(buf[:cnt]); err != nil {
+			// 			fmt.Println("write back buf err", err)
+			// 			continue
+			// 		}
+			// 	}
+			// }()
+
 		}
 	}()
 }
